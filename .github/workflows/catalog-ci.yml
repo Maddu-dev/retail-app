@@ -156,7 +156,7 @@ jobs:
           docker build \
             --file src/catalog/Dockerfile \
             --tag "${IMAGE_NAME}:${GITHUB_SHA}" \
-            .
+            src/catalog
 
 
       - name: Scan built image
