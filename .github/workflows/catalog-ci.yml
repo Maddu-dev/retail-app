@@ -19,7 +19,7 @@ on:
       - "package.json"
       - "yarn.lock"
       - "nx.json"
-      - "mise.toml"
+      - ".mise.toml"
       - ".github/workflows/catalog-ci.yml"
 
 permissions:
@@ -33,6 +33,8 @@ jobs:
     name: Pre-build security and tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      dependency_status: ${{ steps.dependency_scan.outputs.status }}
     
 
     steps:
@@ -66,20 +68,20 @@ jobs:
       - name: Test catalog
         run: yarn nx test catalog
 
-      # - name: Scan source dependencies
-      #   run: |
-      #     docker run --rm \
-      #       -v "$GITHUB_WORKSPACE:/repo:ro" \
-      #       -v "${{ runner.temp }}/trivy-cache:/root/.cache/" \
-      #       aquasec/trivy:latest \
-      #       fs /repo \
-      #       --scanners vuln \
-      #       --severity HIGH,CRITICAL \
-      #       --skip-dirs /repo/.git \
-      #       --skip-dirs /repo/.local-evidence \
-      #       --skip-dirs /repo/dist \
-      #       --no-progress \
-      #       --exit-code 1
+      - name: Scan source secrets and misconfiguration
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo:ro" \
+            aquasec/trivy:latest \
+            fs /repo \
+            --scanners secret,misconfig \
+            --severity HIGH,CRITICAL \
+            --skip-dirs /repo/.git \
+            --skip-dirs /repo/.local-evidence \
+            --skip-dirs /repo/dist \
+            --no-progress \
+            --exit-code 1
+
       - name: Dependency vulnerability scan
         id: dependency_scan
         shell: bash
@@ -133,13 +135,23 @@ jobs:
       - name: Publish dependency scan status
         if: always()
         run: |
+          status="${{ steps.dependency_scan.outputs.status }}"
+
           {
             echo "## Dependency vulnerability scan"
             echo
-            echo "- Status: **PENDING**"
-            echo "- Reason: Maven Central returned HTTP 429 during dependency resolution"
-            echo "- Release publication remains blocked until this scan returns PASS"
+            echo "- Status: **${status^^}**"
+
+            if [ "$status" = "pending" ]; then
+              echo "- Reason: Maven Central returned HTTP 429 during dependency resolution"
+              echo "- Release publication remains blocked until this scan returns PASS"
+            elif [ "$status" = "pass" ]; then
+              echo "- Complete vulnerability scan finished successfully"
+            else
+              echo "- Vulnerabilities or an unexpected scanner failure were detected"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
+
       
       - name: Scan Dockerfiles
         uses: hadolint/hadolint-action@v3.1.0
@@ -151,6 +163,7 @@ jobs:
   build-and-scan:
     name: Build and scan catalog image
     needs: pre-build
+    if: needs.pre-build.outputs.dependency_status == 'pass'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -171,13 +184,17 @@ jobs:
 
 
       - name: Scan built image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: "${{ env.IMAGE_NAME}}:${{ github.sha }}"
-          scanners: vuln,secret
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
+        run: |
+          docker run --rm \
+            -v "$RUNNER_TEMP/trivy-cache:/root/.cache/" \
+            aquasec/trivy:latest \
+            image "${IMAGE_NAME}:${GITHUB_SHA}" \
+            --scanners vuln,secret \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --no-progress \
+            --exit-code 1
+
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
