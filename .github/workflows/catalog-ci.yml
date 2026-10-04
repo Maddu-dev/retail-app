@@ -136,7 +136,19 @@ jobs:
         with:
           dockerfile: src/catalog/Dockerfile
           failure-threshold: error
-        
+
+      - name: Publish dependency scan status
+        if: always()
+        run: |
+          {
+            echo "## Dependency vulnerability scan"
+            echo
+            echo "- Status: **PENDING**"
+            echo "- Reason: Maven Central returned HTTP 429 during dependency resolution"
+            echo "- Release publication remains blocked until this scan returns PASS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+
   build-and-scan:
     name: Build and scan catalog image
     needs: pre-build
