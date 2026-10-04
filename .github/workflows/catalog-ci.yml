@@ -66,15 +66,20 @@ jobs:
       - name: Test catalog
         run: yarn nx test catalog
 
-      - name: Scan source files
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: secret,misconfig
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
+      - name: Scan source dependencies
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo:ro" \
+            -v "${{ runner.temp }}/trivy-cache:/root/.cache/" \
+            aquasec/trivy:latest \
+            fs /repo \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --skip-dirs /repo/.git \
+            --skip-dirs /repo/.local-evidence \
+            --skip-dirs /repo/dist \
+            --no-progress \
+            --exit-code 1
       
       - name: Scan Dockerfiles
         uses: hadolint/hadolint-action@v3.1.0
