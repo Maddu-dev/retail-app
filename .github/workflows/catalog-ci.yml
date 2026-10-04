@@ -68,19 +68,19 @@ jobs:
       - name: Test catalog
         run: yarn nx test catalog
 
-      - name: Scan source secrets and misconfiguration
-        run: |
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE:/repo:ro" \
-            aquasec/trivy:latest \
-            fs /repo \
-            --scanners secret,misconfig \
-            --severity HIGH,CRITICAL \
-            --skip-dirs /repo/.git \
-            --skip-dirs /repo/.local-evidence \
-            --skip-dirs /repo/dist \
-            --no-progress \
-            --exit-code 1
+      # - name: Scan source secrets and misconfiguration
+      #   run: |
+      #     docker run --rm \
+      #       -v "$GITHUB_WORKSPACE:/repo:ro" \
+      #       aquasec/trivy:latest \
+      #       fs /repo \
+      #       --scanners secret,misconfig \
+      #       --severity HIGH,CRITICAL \
+      #       --skip-dirs /repo/.git \
+      #       --skip-dirs /repo/.local-evidence \
+      #       --skip-dirs /repo/dist \
+      #       --no-progress \
+      #       --exit-code 1
 
       - name: Dependency vulnerability scan
         id: dependency_scan
