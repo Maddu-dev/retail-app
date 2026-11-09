@@ -1,0 +1,25 @@
+name: reusable-ci
+
+on:
+  workflow_call:
+    inputs:
+      service:        { required: true, type: string }
+      context:        { required: true, type: string }
+      dockerfile:     { required: true, type: string }
+      image:          { required: true, type: string }
+    secrets:
+      DOCKERHUB_USERNAME: { required: true }
+      DOCKERHUB_TOKEN:    { required: true }
+env:
+  IMAGE_REF: ${{ inputs.image }}:${{ github.sha }}
+
+jobs:
+  gitleaks:
+    name: gate-1-secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
